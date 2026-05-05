@@ -3,11 +3,15 @@ package com.fulfilment.application.monolith.location;
 import com.fulfilment.application.monolith.warehouses.domain.models.Location;
 import com.fulfilment.application.monolith.warehouses.domain.ports.LocationResolver;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
+
 import java.util.ArrayList;
 import java.util.List;
 
 @ApplicationScoped
 public class LocationGateway implements LocationResolver {
+
+  private static final Logger LOG = Logger.getLogger(LocationGateway.class);
 
   private static final List<Location> locations = new ArrayList<>();
 
@@ -24,11 +28,19 @@ public class LocationGateway implements LocationResolver {
 
   @Override
   public Location resolveByIdentifier(String identifier) {
-    // Simple repository pattern: search through the predefined locations
-    // Returns the location if found, or null if not found
-    return locations.stream()
-        .filter(location -> location.identifier().equals(identifier))
+    LOG.debugf("Resolving location for identifier: %s", identifier);
+
+    Location location = locations.stream()
+        .filter(loc -> loc.identifier().equals(identifier))
         .findFirst()
         .orElse(null);
+
+    if (location == null) {
+      LOG.warnf("Location not found for identifier: %s", identifier);
+    } else {
+      LOG.debugf("Location found: %s", identifier);
+    }
+
+    return location;
   }
 }

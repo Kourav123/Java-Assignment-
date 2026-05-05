@@ -1,51 +1,64 @@
 package com.fulfilment.application.monolith.stores;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 @ApplicationScoped
 public class LegacyStoreManagerGateway {
 
+  private static final Logger LOGGER = Logger.getLogger(LegacyStoreManagerGateway.class);
+
   public void createStoreOnLegacySystem(Store store) {
-    // just to emulate as this would send this to a legacy system, let's write a temp file with the
+    LOGGER.infof("Sending create request to legacy system for store: %s", store.name);
     writeToFile(store);
   }
 
   public void updateStoreOnLegacySystem(Store store) {
-    // just to emulate as this would send this to a legacy system, let's write a temp file with the
+    LOGGER.infof("Sending update request to legacy system for store: %s", store.name);
     writeToFile(store);
   }
 
   private void writeToFile(Store store) {
+    Path tempFile = null;
+
     try {
-      // Step 1: Create a temporary file
-      Path tempFile;
-
+      // Step 1: Create temp file
       tempFile = Files.createTempFile(store.name, ".txt");
+      LOGGER.infof("Temporary file created at: %s", tempFile.toString());
 
-      System.out.println("Temporary file created at: " + tempFile.toString());
-
-      // Step 2: Write data to the temporary file
+      // Step 2: Write data
       String content =
-          "Store created. [ name ="
-              + store.name
-              + " ] [ items on stock ="
-              + store.quantityProductsInStock
-              + "]";
+          "Store created. [ name =" + store.name +
+          " ] [ items on stock =" + store.quantityProductsInStock + "]";
+
       Files.write(tempFile, content.getBytes());
-      System.out.println("Data written to temporary file.");
+      LOGGER.debug("Data written to temporary file");
 
-      // Step 3: Optionally, read the data back to verify
+      // Step 3: Read back for verification
       String readContent = new String(Files.readAllBytes(tempFile));
-      System.out.println("Data read from temporary file: " + readContent);
+      LOGGER.debugf("Data read from file: %s", readContent);
 
-      // Step 4: Delete the temporary file when done
-      Files.delete(tempFile);
-      System.out.println("Temporary file deleted.");
+    } catch (Exception exception) {
+      LOGGER.errorf(
+          exception,
+          "Error while processing legacy store operation for store: %s",
+          store.name
+      );
+      throw new RuntimeException("Failed to process legacy store operation", exception);
 
-    } catch (Exception e) {
-      e.printStackTrace();
+    } finally {
+      // Step 4: Delete temp file safely
+      if (tempFile != null) {
+        try {
+          Files.deleteIfExists(tempFile);
+          LOGGER.infof("Temporary file deleted: %s", tempFile.toString());
+        } catch (Exception ex) {
+          LOGGER.warnf("Failed to delete temporary file: %s", tempFile.toString());
+        }
+      }
     }
   }
 }

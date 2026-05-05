@@ -36,8 +36,7 @@ class WarehouseRepositoryUnitTest {
         List<Warehouse> result = repository.getAll();
 
         assertEquals(1, result.size());
-        assertEquals("TEST-001",
-                result.get(0).businessUnitCode);
+        assertEquals("TEST-001", result.get(0).businessUnitCode);
     }
 
     @Test
@@ -50,7 +49,8 @@ class WarehouseRepositoryUnitTest {
         warehouse.stock = 20;
         warehouse.createdAt = LocalDateTime.now();
 
-        doNothing().when(repository)
+        doNothing()
+                .when(repository)
                 .persist(any(DbWarehouse.class));
 
         repository.create(warehouse);
@@ -76,19 +76,16 @@ class WarehouseRepositoryUnitTest {
         updated.stock = 50;
         updated.archivedAt = LocalDateTime.now();
 
-        PanacheQuery<DbWarehouse> query =
-                mock(PanacheQuery.class);
+        PanacheQuery<DbWarehouse> query = mock(PanacheQuery.class);
 
         doReturn(query)
                 .when(repository)
-                .find("businessUnitCode",
-                        "TEST-003");
+                .find("businessUnitCode", "TEST-003");
 
         when(query.firstResult())
                 .thenReturn(dbWarehouse);
 
-        EntityManager entityManager =
-                mock(EntityManager.class);
+        EntityManager entityManager = mock(EntityManager.class);
 
         doReturn(entityManager)
                 .when(repository)
@@ -111,13 +108,11 @@ class WarehouseRepositoryUnitTest {
         Warehouse warehouse = new Warehouse();
         warehouse.businessUnitCode = "UNKNOWN";
 
-        PanacheQuery<DbWarehouse> query =
-                mock(PanacheQuery.class);
+        PanacheQuery<DbWarehouse> query = mock(PanacheQuery.class);
 
         doReturn(query)
                 .when(repository)
-                .find("businessUnitCode",
-                        "UNKNOWN");
+                .find("businessUnitCode", "UNKNOWN");
 
         when(query.firstResult())
                 .thenReturn(null);
@@ -128,23 +123,69 @@ class WarehouseRepositoryUnitTest {
                         () -> repository.update(warehouse));
 
         assertEquals(
-                "Warehouse does not exist",
+                "Warehouse does not exist for businessUnitCode: UNKNOWN",
                 ex.getMessage());
     }
 
+    @SuppressWarnings("unchecked")
     @Test
-    void shouldCoverRemove() {
+    void shouldCoverRemoveWhenWarehouseDoesNotExist() {
 
         Warehouse warehouse = new Warehouse();
+        warehouse.businessUnitCode = "UNKNOWN";
 
-        UnsupportedOperationException ex =
+        PanacheQuery<DbWarehouse> query = mock(PanacheQuery.class);
+
+        doReturn(query)
+                .when(repository)
+                .find("businessUnitCode", "UNKNOWN");
+
+        when(query.firstResult())
+                .thenReturn(null);
+
+        IllegalArgumentException ex =
                 assertThrows(
-                        UnsupportedOperationException.class,
+                        IllegalArgumentException.class,
                         () -> repository.remove(warehouse));
 
         assertEquals(
-                "Unimplemented method 'remove'",
+                "Warehouse does not exist for businessUnitCode: UNKNOWN",
                 ex.getMessage());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void shouldCoverRemoveSuccessfully() {
+
+        Warehouse warehouse = new Warehouse();
+        warehouse.businessUnitCode = "TEST-005";
+
+        DbWarehouse dbWarehouse = new DbWarehouse();
+        dbWarehouse.businessUnitCode = "TEST-005";
+
+        PanacheQuery<DbWarehouse> query = mock(PanacheQuery.class);
+
+        doReturn(query)
+                .when(repository)
+                .find("businessUnitCode", "TEST-005");
+
+        when(query.firstResult())
+                .thenReturn(dbWarehouse);
+
+        doNothing()
+                .when(repository)
+                .delete(dbWarehouse);
+
+        EntityManager entityManager = mock(EntityManager.class);
+
+        doReturn(entityManager)
+                .when(repository)
+                .getEntityManager();
+
+        repository.remove(warehouse);
+
+        verify(repository).delete(dbWarehouse);
+        verify(entityManager).flush();
     }
 
     @SuppressWarnings("unchecked")
@@ -157,42 +198,35 @@ class WarehouseRepositoryUnitTest {
         dbWarehouse.capacity = 300;
         dbWarehouse.stock = 30;
 
-        PanacheQuery<DbWarehouse> query =
-                mock(PanacheQuery.class);
+        PanacheQuery<DbWarehouse> query = mock(PanacheQuery.class);
 
         doReturn(query)
                 .when(repository)
-                .find("businessUnitCode",
-                        "TEST-004");
+                .find("businessUnitCode", "TEST-004");
 
         when(query.firstResult())
                 .thenReturn(dbWarehouse);
 
-        Warehouse result =
-                repository.findByBusinessUnitCode("TEST-004");
+        Warehouse result = repository.findByBusinessUnitCode("TEST-004");
 
         assertNotNull(result);
-        assertEquals("TEST-004",
-                result.businessUnitCode);
+        assertEquals("TEST-004", result.businessUnitCode);
     }
 
     @SuppressWarnings("unchecked")
     @Test
     void shouldReturnNullWhenWarehouseNotFound() {
 
-        PanacheQuery<DbWarehouse> query =
-                mock(PanacheQuery.class);
+        PanacheQuery<DbWarehouse> query = mock(PanacheQuery.class);
 
         doReturn(query)
                 .when(repository)
-                .find("businessUnitCode",
-                        "UNKNOWN");
+                .find("businessUnitCode", "UNKNOWN");
 
         when(query.firstResult())
                 .thenReturn(null);
 
-        Warehouse result =
-                repository.findByBusinessUnitCode("UNKNOWN");
+        Warehouse result = repository.findByBusinessUnitCode("UNKNOWN");
 
         assertNull(result);
     }
