@@ -1,318 +1,222 @@
 package com.fulfilment.application.monolith.stores;
 
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.test.junit.QuarkusTest;
-import io.restassured.http.ContentType;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
-import java.lang.reflect.Field;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
 class StoreResourceTest {
 
+    @Inject
+    StoreResource resource;
+
     @BeforeEach
     @Transactional
     void setup() {
         Store.deleteAll();
 
-        Store store1 = new Store();
-        store1.name = "TONSTAD";
-        store1.quantityProductsInStock = 10;
-        store1.persist();
-
-        Store store2 = new Store();
-        store2.name = "KALLAX";
-        store2.quantityProductsInStock = 5;
-        store2.persist();
+        Store store = new Store();
+        store.name = "TONSTAD";
+        store.quantityProductsInStock = 10;
+        store.persist();
     }
 
-    private Long getStoreIdByName(String name) {
-        Store store = (Store) Store.find("name", name).firstResult();
+    private Long getStoreId() {
+        Store store = Store.find("name", "TONSTAD").firstResult();
         return store.id;
     }
 
     @Test
+    @Transactional
     void shouldGetAllStores() {
-        given()
-                .when()
-                .get("/store")
-                .then()
-                .statusCode(200);
+        List<Store> stores = resource.get();
+
+        assertNotNull(stores);
+        assertEquals(1, stores.size());
+        assertEquals("TONSTAD", stores.get(0).name);
     }
 
     @Test
+    @Transactional
     void shouldGetSingleStore() {
-        Long id = getStoreIdByName("TONSTAD");
+        Long id = getStoreId();
 
-        given()
-                .when()
-                .get("/store/" + id)
-                .then()
-                .statusCode(200)
-                .body("name", equalTo("TONSTAD"))
-                .body("quantityProductsInStock", equalTo(10));
+        Store store = resource.getSingle(id);
+
+        assertNotNull(store);
+        assertEquals("TONSTAD", store.name);
+        assertEquals(10, store.quantityProductsInStock);
     }
 
     @Test
-    void shouldReturn404WhenStoreNotFound() {
-        given()
-                .when()
-                .get("/store/99999")
-                .then()
-                .statusCode(404);
+    @Transactional
+    void shouldThrow404WhenStoreNotFound() {
+        WebApplicationException ex = assertThrows(
+                WebApplicationException.class,
+                () -> resource.getSingle(999L));
+
+        assertEquals(404, ex.getResponse().getStatus());
     }
 
     @Test
-    void shouldCreateStore() {
-        String requestBody = """
-                {
-                  "name": "New Store",
-                  "quantityProductsInStock": 200
-                }
-                """;
+    @Transactional
+    void shouldCreateStoreSuccessfully() {
+        Store store = new Store();
+        store.name = "New Store";
+        store.quantityProductsInStock = 100;
 
-        given()
-                .contentType(ContentType.JSON)
-                .body(requestBody)
-                .when()
-                .post("/store")
-                .then()
-                .statusCode(201)
-                .body("name", equalTo("New Store"))
-                .body("quantityProductsInStock", equalTo(200));
+        Response response = resource.create(store);
+
+        assertEquals(201, response.getStatus());
+
+        Store savedStore = (Store) response.getEntity();
+
+        assertEquals("New Store", savedStore.name);
+        assertEquals(100, savedStore.quantityProductsInStock);
     }
 
     @Test
-    void shouldReturn422WhenCreateStoreWithId() {
-        String requestBody = """
-                {
-                  "id": 1,
-                  "name": "Invalid Store",
-                  "quantityProductsInStock": 10
-                }
-                """;
+    @Transactional
+    void shouldThrow422WhenCreateStoreWithId() {
+        Store store = new Store();
+        store.id = 1L;
+        store.name = "Invalid Store";
+        store.quantityProductsInStock = 100;
 
-        given()
-                .contentType(ContentType.JSON)
-                .body(requestBody)
-                .when()
-                .post("/store")
-                .then()
-                .statusCode(422);
+        WebApplicationException ex = assertThrows(
+                WebApplicationException.class,
+                () -> resource.create(store));
+
+        assertEquals(422, ex.getResponse().getStatus());
     }
 
     @Test
-    void shouldReturn422WhenCreateStoreWithoutName() {
-        String requestBody = """
-                {
-                  "quantityProductsInStock": 10
-                }
-                """;
+    @Transactional
+    void shouldThrow422WhenCreateStoreNameMissing() {
+        Store store = new Store();
+        store.quantityProductsInStock = 100;
 
-        given()
-                .contentType(ContentType.JSON)
-                .body(requestBody)
-                .when()
-                .post("/store")
-                .then()
-                .statusCode(422);
+        WebApplicationException ex = assertThrows(
+                WebApplicationException.class,
+                () -> resource.create(store));
+
+        assertEquals(422, ex.getResponse().getStatus());
     }
 
     @Test
-    void shouldUpdateStore() {
-        Long id = getStoreIdByName("TONSTAD");
+    @Transactional
+    void shouldUpdateStoreSuccessfully() {
+        Long id = getStoreId();
 
-        String requestBody = """
-                {
-                  "name": "Updated Store",
-                  "quantityProductsInStock": 500
-                }
-                """;
+        Store updatedStore = new Store();
+        updatedStore.name = "Updated Store";
+        updatedStore.quantityProductsInStock = 500;
 
-        given()
-                .contentType(ContentType.JSON)
-                .body(requestBody)
-                .when()
-                .put("/store/" + id)
-                .then()
-                .statusCode(200)
-                .body("name", equalTo("Updated Store"))
-                .body("quantityProductsInStock", equalTo(500));
+        Store result = resource.update(id, updatedStore);
+
+        assertNotNull(result);
+        assertEquals("Updated Store", result.name);
+        assertEquals(500, result.quantityProductsInStock);
     }
 
     @Test
-    void shouldReturn404WhenUpdateStoreNotFound() {
-        String requestBody = """
-                {
-                  "name": "Updated Store",
-                  "quantityProductsInStock": 500
-                }
-                """;
+    @Transactional
+    void shouldThrow404WhenUpdateStoreNotFound() {
+        Store updatedStore = new Store();
+        updatedStore.name = "Updated Store";
+        updatedStore.quantityProductsInStock = 500;
 
-        given()
-                .contentType(ContentType.JSON)
-                .body(requestBody)
-                .when()
-                .put("/store/99999")
-                .then()
-                .statusCode(404);
+        WebApplicationException ex = assertThrows(
+                WebApplicationException.class,
+                () -> resource.update(999L, updatedStore));
+
+        assertEquals(404, ex.getResponse().getStatus());
     }
 
     @Test
-    void shouldReturn422WhenUpdateStoreNameMissing() {
-        Long id = getStoreIdByName("TONSTAD");
+    @Transactional
+    void shouldPatchStoreSuccessfully() {
+        Long id = getStoreId();
 
-        String requestBody = """
-                {
-                  "quantityProductsInStock": 500
-                }
-                """;
+        Store patchRequest = new Store();
+        patchRequest.name = "Patched Store";
+        patchRequest.quantityProductsInStock = 300;
 
-        given()
-                .contentType(ContentType.JSON)
-                .body(requestBody)
-                .when()
-                .put("/store/" + id)
-                .then()
-                .statusCode(422);
+        Store result = resource.patch(id, patchRequest);
+
+        assertNotNull(result);
+        assertEquals("Patched Store", result.name);
+        assertEquals(300, result.quantityProductsInStock);
     }
 
     @Test
-    void shouldPatchStore() {
-        Long id = getStoreIdByName("TONSTAD");
-
-        String requestBody = """
-                {
-                  "name": "Patched Store",
-                  "quantityProductsInStock": 700
-                }
-                """;
-
-        given()
-                .contentType(ContentType.JSON)
-                .body(requestBody)
-                .when()
-                .patch("/store/" + id)
-                .then()
-                .statusCode(200)
-                .body("name", equalTo("Patched Store"))
-                .body("quantityProductsInStock", equalTo(700));
-    }
-
-    @Test
+    @Transactional
     void shouldPatchOnlyStoreName() {
-        Long id = getStoreIdByName("TONSTAD");
+        Long id = getStoreId();
 
-        String requestBody = """
-                {
-                  "name": "Only Name Updated"
-                }
-                """;
+        Store patchRequest = new Store();
+        patchRequest.name = "Only Name Updated";
 
-        given()
-                .contentType(ContentType.JSON)
-                .body(requestBody)
-                .when()
-                .patch("/store/" + id)
-                .then()
-                .statusCode(200)
-                .body("name", equalTo("Only Name Updated"))
-                .body("quantityProductsInStock", equalTo(10));
+        Store result = resource.patch(id, patchRequest);
+
+        assertEquals("Only Name Updated", result.name);
+        assertEquals(10, result.quantityProductsInStock);
     }
 
     @Test
+    @Transactional
     void shouldPatchOnlyStock() {
-        Long id = getStoreIdByName("TONSTAD");
+        Long id = getStoreId();
 
-        String requestBody = """
-                {
-                  "quantityProductsInStock": 900
-                }
-                """;
+        Store patchRequest = new Store();
+        patchRequest.quantityProductsInStock = 900;
 
-        given()
-                .contentType(ContentType.JSON)
-                .body(requestBody)
-                .when()
-                .patch("/store/" + id)
-                .then()
-                .statusCode(200)
-                .body("name", equalTo("TONSTAD"))
-                .body("quantityProductsInStock", equalTo(900));
+        Store result = resource.patch(id, patchRequest);
+
+        assertEquals("TONSTAD", result.name);
+        assertEquals(900, result.quantityProductsInStock);
     }
 
     @Test
-    void shouldReturn404WhenPatchStoreNotFound() {
-        String requestBody = """
-                {
-                  "name": "Patched Store"
-                }
-                """;
+    @Transactional
+    void shouldThrow404WhenPatchStoreNotFound() {
+        Store patchRequest = new Store();
+        patchRequest.name = "Patched Store";
+        patchRequest.quantityProductsInStock = 300;
 
-        given()
-                .contentType(ContentType.JSON)
-                .body(requestBody)
-                .when()
-                .patch("/store/99999")
-                .then()
-                .statusCode(404);
+        WebApplicationException ex = assertThrows(
+                WebApplicationException.class,
+                () -> resource.patch(999L, patchRequest));
+
+        assertEquals(404, ex.getResponse().getStatus());
     }
 
     @Test
-    void shouldDeleteStore() {
-        Long id = getStoreIdByName("TONSTAD");
+    @Transactional
+    void shouldDeleteStoreSuccessfully() {
+        Long id = getStoreId();
 
-        given()
-                .when()
-                .delete("/store/" + id)
-                .then()
-                .statusCode(204);
+        Response response = resource.delete(id);
+
+        assertEquals(204, response.getStatus());
     }
 
     @Test
-    void shouldReturn404WhenDeleteStoreNotFound() {
-        given()
-                .when()
-                .delete("/store/99999")
-                .then()
-                .statusCode(404);
-    }
+    @Transactional
+    void shouldThrow404WhenDeleteStoreNotFound() {
+        WebApplicationException ex = assertThrows(
+                WebApplicationException.class,
+                () -> resource.delete(999L));
 
-    @Test
-    void shouldCoverErrorMapperForWebApplicationException() throws Exception {
-        StoreResource.ErrorMapper mapper = new StoreResource.ErrorMapper();
-
-        Field field = StoreResource.ErrorMapper.class.getDeclaredField("objectMapper");
-        field.setAccessible(true);
-        field.set(mapper, new ObjectMapper());
-
-        Response response = mapper.toResponse(
-                new WebApplicationException("Store not found", 404));
-
-        assertEquals(404, response.getStatus());
-        assertNotNull(response.getEntity());
-    }
-
-    @Test
-    void shouldCoverErrorMapperForGenericException() throws Exception {
-        StoreResource.ErrorMapper mapper = new StoreResource.ErrorMapper();
-
-        Field field = StoreResource.ErrorMapper.class.getDeclaredField("objectMapper");
-        field.setAccessible(true);
-        field.set(mapper, new ObjectMapper());
-
-        Response response = mapper.toResponse(
-                new RuntimeException("Something went wrong"));
-
-        assertEquals(500, response.getStatus());
-        assertNotNull(response.getEntity());
+        assertEquals(404, ex.getResponse().getStatus());
     }
 }

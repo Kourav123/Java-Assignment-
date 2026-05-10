@@ -14,6 +14,13 @@ public interface WarehouseStore {
   void remove(Warehouse warehouse);
 
   Warehouse findByBusinessUnitCode(String buCode);
+
+  List<Warehouse> findByLocation(String location);
+
+  List<Warehouse> findByCapacityBetween(Integer minCapacity, Integer maxCapacity);
+
+  List<Warehouse> findByStockBetween(Integer minStock, Integer maxStock);
+
+  List<Warehouse> findByArchived(Boolean archived);  
   
-  List<Warehouse> search(String location, Integer minCapacity,Integer maxCapacity,String sortBy,String sortOrder,int page,int pageSize);
 }

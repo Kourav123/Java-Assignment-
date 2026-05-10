@@ -1,6 +1,7 @@
 package com.fulfilment.application.monolith.warehouses.adapters.database;
 
 import com.fulfilment.application.monolith.warehouses.domain.models.Warehouse;
+
 import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStore;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -97,52 +98,89 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
 
     return dbWarehouse.toWarehouse();
   }
+  @Override
+  public List<Warehouse> findByLocation(String location) {
+    LOG.infof("Finding warehouses by location: %s", location);
+
+    return list("location = ?1", location).stream()
+        .map(DbWarehouse::toWarehouse)
+        .toList();
+  }
 
   @Override
-  public List<Warehouse> search(String location, Integer minCapacity,Integer maxCapacity,String sortBy,String sortOrder,int page,int pageSize) {
+  public List<Warehouse> findByCapacityBetween(Integer minCapacity, Integer maxCapacity) {
+    LOG.infof(
+        "Finding warehouses by capacity range -> minCapacity: %s, maxCapacity: %s",
+        minCapacity, maxCapacity);
 
-    LOG.infof("Search request received -> location: %s, minCapacity: %s, maxCapacity: %s, sortBy: %s, sortOrder: %s, page: %d, pageSize: %d",
-        location, minCapacity, maxCapacity, sortBy, sortOrder, page, pageSize);
-
-    StringBuilder query = new StringBuilder("archivedAt is null");
-    Map<String, Object> params = new HashMap<>();
-
-    if (location != null && !location.isBlank()) {
-      query.append(" and location = :location");
-      params.put("location", location);
+    if (minCapacity != null && maxCapacity != null) {
+      return list("capacity >= ?1 and capacity <= ?2", minCapacity, maxCapacity).stream()
+          .map(DbWarehouse::toWarehouse)
+          .toList();
     }
 
     if (minCapacity != null) {
-      query.append(" and capacity >= :minCapacity");
-      params.put("minCapacity", minCapacity);
+      return list("capacity >= ?1", minCapacity).stream()
+          .map(DbWarehouse::toWarehouse)
+          .toList();
     }
 
     if (maxCapacity != null) {
-      query.append(" and capacity <= :maxCapacity");
-      params.put("maxCapacity", maxCapacity);
+      return list("capacity <= ?1", maxCapacity).stream()
+          .map(DbWarehouse::toWarehouse)
+          .toList();
     }
 
-    if (!"capacity".equalsIgnoreCase(sortBy)) {
-      sortBy = "createdAt";
-    }
-
-    if (!"desc".equalsIgnoreCase(sortOrder)) {
-      sortOrder = "asc";
-    }
-
-    query.append(" order by ").append(sortBy).append(" ").append(sortOrder);
-
-    LOG.debugf("Executing search query: %s with params: %s", query, params);
-
-    List<Warehouse> result = find(query.toString(), params)
-        .page(page, pageSize)
-        .list()
-        .stream()
+    return listAll().stream()
         .map(DbWarehouse::toWarehouse)
         .toList();
-
-    LOG.infof("Search completed. Total results fetched: %d", result.size());
-
-    return result;
   }
+
+  @Override
+  public List<Warehouse> findByStockBetween(Integer minStock, Integer maxStock) {
+    LOG.infof(
+        "Finding warehouses by stock range -> minStock: %s, maxStock: %s",
+        minStock, maxStock);
+
+    if (minStock != null && maxStock != null) {
+      return list("stock >= ?1 and stock <= ?2", minStock, maxStock).stream()
+          .map(DbWarehouse::toWarehouse)
+          .toList();
+    }
+
+    if (minStock != null) {
+      return list("stock >= ?1", minStock).stream()
+          .map(DbWarehouse::toWarehouse)
+          .toList();
+    }
+
+    if (maxStock != null) {
+      return list("stock <= ?1", maxStock).stream()
+          .map(DbWarehouse::toWarehouse)
+          .toList();
+    }
+
+    return listAll().stream()
+        .map(DbWarehouse::toWarehouse)
+        .toList();
+  }
+
+  @Override
+  public List<Warehouse> findByArchived(Boolean archived) {
+    LOG.infof("Finding warehouses by archived status: %s", archived);
+
+    if (archived == null) {
+      return listAll().stream()
+          .map(DbWarehouse::toWarehouse)
+          .toList();
+    }
+
+    String query = archived ? "archivedAt is not null" : "archivedAt is null";
+
+    return list(query).stream()
+        .map(DbWarehouse::toWarehouse)
+        .toList();
+  }
+  
+
 }
